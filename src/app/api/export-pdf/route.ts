@@ -226,8 +226,8 @@ h1 {
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as Body;
-const html = body.html ?? (await buildHtmlFromPayload(body));
-const finalHtml = html.replaceAll("Aliven Rhythm Preview", "Aliven Personalized Path");
+  const html = body.html ?? (await buildHtmlFromPayload(body));
+  const finalHtml = html.replaceAll("Aliven Rhythm Preview", "Aliven Personalized Path");
 
   const filename =
     (body.filename || body.pathName || "aliven-rhythm-preview")
@@ -243,7 +243,7 @@ const finalHtml = html.replaceAll("Aliven Rhythm Preview", "Aliven Personalized 
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1200, height: 800 });
-await page.setContent(finalHtml, { waitUntil: "networkidle0" });
+    await page.setContent(finalHtml, { waitUntil: "networkidle0" });
 
     const pdf = await page.pdf({
       format: "A4",
@@ -251,7 +251,7 @@ await page.setContent(finalHtml, { waitUntil: "networkidle0" });
       margin: { top: "16mm", right: "16mm", bottom: "16mm", left: "16mm" },
     });
 
-    return new NextResponse(pdf, {
+    return new NextResponse(pdf.buffer as ArrayBuffer, {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${filename}"`,
