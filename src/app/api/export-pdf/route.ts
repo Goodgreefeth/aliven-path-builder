@@ -220,28 +220,32 @@ h1 {
 </div>
 </body>
 </html>`;
-}
+} // ✅ this closing brace was missing in your pasted version
 
 /* ---------------- Puppeteer launcher ---------------- */
 
 async function getBrowser() {
+  const isProd =
+    process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+
   console.log("PDF export env:", {
     VERCEL: process.env.VERCEL,
     NODE_ENV: process.env.NODE_ENV,
+    isProd,
   });
-  // In production (Vercel) use Sparticuz Chromium.
+
+  // Production (Vercel): use Sparticuz Chromium
   if (isProd) {
-    return puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-    });
+   return puppeteer.launch({
+  args: chromium.args,
+  executablePath: await chromium.executablePath(),
+  headless: true,
+});
   }
 
-  // Local dev: try to use a locally installed Chrome (more reliable on Mac).
-  // If this path doesn't exist on your machine, it will fall back to Puppeteer defaults.
-  const macChrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+  // Local dev: use installed Chrome (Mac)
+  const macChrome =
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
   return puppeteer.launch({
     headless: true,
@@ -253,6 +257,7 @@ async function getBrowser() {
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as Body;
+
   const html = body.html ?? (await buildHtmlFromPayload(body));
   const finalHtml = html.replaceAll(
     "Aliven Rhythm Preview",
