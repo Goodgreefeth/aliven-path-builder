@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import puppeteer from "puppeteer";
+import puppeteer from "puppeteer-core";
+import chromium from "@sparticuz/chromium";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -35,8 +36,7 @@ function escapeHtml(input: string = "") {
 }
 
 /**
- * ✅ Fix for the Turbopack/SWC parse error:
- * Do NOT store giant base64 strings in this route file.
+ * ✅ Do NOT store giant base64 strings in this route file.
  * Put the logo at: /public/aliven-logo.png
  */
 async function getLogoDataUri(): Promise<string | null> {
@@ -45,14 +45,14 @@ async function getLogoDataUri(): Promise<string | null> {
     const buf = await readFile(logoPath);
     return `data:image/png;base64,${buf.toString("base64")}`;
   } catch {
-    return null; // If missing, hide logo
+    return null;
   }
 }
 
 /* ---------------- HTML builder ---------------- */
 
 async function buildHtmlFromPayload(body: Body) {
-const title = body.title || "Aliven Personalized Path";
+  const title = body.title || "Aliven Personalized Path";
   const pathName = body.pathName || body.pathId || "Selected Path";
   const createdAt = body.createdAt
     ? new Date(body.createdAt).toLocaleString()
@@ -222,12 +222,42 @@ h1 {
 </html>`;
 }
 
+/* ---------------- Puppeteer launcher ---------------- */
+
+async function getBrowser() {
+  console.log("PDF export env:", {
+    VERCEL: process.env.VERCEL,
+    NODE_ENV: process.env.NODE_ENV,
+  });
+  // In production (Vercel) use Sparticuz Chromium.
+  if (isProd) {
+    return puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    });
+  }
+
+  // Local dev: try to use a locally installed Chrome (more reliable on Mac).
+  // If this path doesn't exist on your machine, it will fall back to Puppeteer defaults.
+  const macChrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+
+  return puppeteer.launch({
+    headless: true,
+    executablePath: macChrome,
+  });
+}
+
 /* ---------------- API handler ---------------- */
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as Body;
   const html = body.html ?? (await buildHtmlFromPayload(body));
-  const finalHtml = html.replaceAll("Aliven Rhythm Preview", "Aliven Personalized Path");
+  const finalHtml = html.replaceAll(
+    "Aliven Rhythm Preview",
+    "Aliven Personalized Path"
+  );
 
   const filename =
     (body.filename || body.pathName || "aliven-rhythm-preview")
@@ -235,10 +265,7 @@ export async function POST(req: Request) {
       .replaceAll(" ", "-")
       .slice(0, 80) + ".pdf";
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+  const browser = await getBrowser();
 
   try {
     const page = await browser.newPage();
@@ -251,7 +278,7 @@ export async function POST(req: Request) {
       margin: { top: "16mm", right: "16mm", bottom: "16mm", left: "16mm" },
     });
 
-    return new NextResponse(pdf.buffer as ArrayBuffer, {
+    return new NextResponse(pdf as unknown as ArrayBuffer, {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${filename}"`,
